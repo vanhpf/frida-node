@@ -1,45 +1,67 @@
-name: build-frida-binding
+name: build-frida-binding-17.24.3
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout frida-node（含子模块）
+      - name: Checkout frida-node @ 17.24.3 (with submodules)
         uses: actions/checkout@v6
         with:
           repository: frida/frida-node
+          ref: 17.24.3
           submodules: recursive
-          ref: 17.26.2
+          fetch-depth: 0
 
-      - name: Setup Node.js（要和本地版本一致！）
+      - name: Setup Node.js 26.13.0
         uses: actions/setup-node@v4
         with:
           node-version: '26.13.0'
+          cache: 'npm'
 
-      - name: Setup Python
+      - name: Setup Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Init MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install Go (frida-core compiler backend 需要)
+      - name: Setup Go 1.26
         uses: actions/setup-go@v5
         with:
           go-version: '1.26'
 
-      - name: Build from source
+      - name: Init MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Ensure submodules (releng/core/gum)
+        shell: pwsh
         run: |
-          npm install
-          node scripts/install.js
+          git submodule update --init --recursive
+          Get-ChildItem subprojects
+
+      - name: Clean any stale build artifacts
+        shell: pwsh
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path node_modules\frida\build) { Remove-Item -Recurse -Force node_modules\frida\build }
+
+      - name: Build from source (make.bat)
+        shell: pwsh
+        run: |
+          .\make.bat
+
+      - name: Verify binding exports getVersion
+        shell: pwsh
+        run: |
+          node -e "const f=require('./build/frida_binding.node'); if(typeof f.getVersion!=='function'){throw new Error('getVersion missing')} console.log('binding OK, version=', f.getVersion())"
 
       - name: Upload binding artifact
         uses: actions/upload-artifact@v4
         with:
-          name: frida-binding-win32-x64
+          name: frida-binding-win32-x64-node26
           path: build/frida_binding.node
           retention-days: 7
