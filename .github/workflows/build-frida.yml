@@ -1,0 +1,46 @@
+name: build-frida-binding
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout frida-node（含子模块）
+        uses: actions/checkout@v6
+        with:
+          repository: frida/frida-node
+          submodules: recursive
+          ref: 17.26.2
+
+      - name: Setup Node.js（要和本地版本一致！）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26.13.0'   # 你本地用啥就填啥，别填 26
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Init MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Go (frida-core compiler backend 需要)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build from source
+        run: |
+          npm install
+          node scripts/install.js
+
+      - name: Upload binding artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-binding-win32-x64
+          path: |
+            build/frida_binding.node
+            build/**/*
